@@ -128,14 +128,21 @@ if agent and llm:
                 # 3. Tokens de los pasos intermedios (¡El costo oculto!)
                 cost_breakdown_md = f"* **Pregunta Usuario:** {prompt_tokens} tokens (input)\n"
                 
-                if "intermediate_steps" in response:
+               if "intermediate_steps" in response:
                     for step in response["intermediate_steps"]:
                         action = step[0]  # Es el objeto AgentAction
                         observation = str(step[1]) # Es el resultado (str)
 
-                        # El "pensamiento" y el "código" son OUTPUT del LLM
-                        thought_tokens = llm.get_num_tokens(action.log)
-                        tool_input_tokens = llm.get_num_tokens(action.tool_input)
+                        # --- LA CORRECCIÓN ESTÁ AQUÍ ---
+                        # Convertimos el "pensamiento" y el "código" a string INMEDIATAMENTE
+                        # antes de que Langchain/Protobuf intenten leerlos.
+                        action_log_str = str(action.log)               # <-- CAMBIO
+                        tool_input_str = str(action.tool_input)        # <-- CAMBIO
+                        # --- FIN DE LA CORRECCIÓN ---
+
+                        # Ahora contamos los tokens de los strings, no de los objetos
+                        thought_tokens = llm.get_num_tokens(action_log_str)
+                        tool_input_tokens = llm.get_num_tokens(tool_input_str)
                         total_output_tokens += thought_tokens + tool_input_tokens
                         
                         # La "observación" (resultado del código) es INPUT para el LLM en el siguiente paso
@@ -177,4 +184,5 @@ if agent and llm:
 else:
 
     st.warning("El agente no está disponible. Revisa los errores en la configuración.")
+
 
