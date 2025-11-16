@@ -9,7 +9,7 @@ MODELO_SELECCIONADO = "gemini-2.5-flash"
 
 PRECIOS_MODELOS = {
     "gemini-2.5-flash": {"input": 0.30, "output": 0.30}, 
-    "gemini-2.5-pro": {"input": 3.50, "output": 10.50}  
+    "gemini-2.5-pro-latest": {"input": 3.50, "output": 10.50}  
 }
 
 PRECIOS_ACTUALES = PRECIOS_MODELOS.get(MODELO_SELECCIONADO, {"input": 0, "output": 0})
@@ -30,7 +30,6 @@ st.sidebar.divider()
 st.sidebar.subheader("Costo Total (Estimado)")
 st.sidebar.metric(label="Costo Total de la Sesión", value=f"${st.session_state.costo_total:.8f} USD")
 st.sidebar.divider()
-# --- Advertencia Simplificada ---
 st.sidebar.warning(
     "**ESTIMACIÓN:** El costo real será mayor. Este cálculo solo"
     " mide tu pregunta (input) y la respuesta final (output), "
@@ -62,7 +61,6 @@ def get_agent_and_llm():
         return None, None
 
     try:
-        # --- CAMBIO: Quitamos 'return_intermediate_steps=True' ---
         agent = create_pandas_dataframe_agent(
             llm,
             df,
@@ -82,10 +80,14 @@ agent, llm = get_agent_and_llm()
 if "messages" not in st.session_state:
     st.session_state.messages = []
 
-# --- CAMBIO: Quitamos la lógica del 'cost_breakdown' ---
+# --- CAMBIO: Mostrar el detalle de costo si existe en el historial ---
 for message in st.session_state.messages:
     with st.chat_message(message["role"]):
         st.markdown(message["content"])
+        # Mostrar el desglose de costos guardado si existe
+        if "cost_summary" in message:
+            with st.expander("Ver detalle del costo"):
+                st.markdown(message["cost_summary"])
 
 # --- 5. Lógica del Chat (con Cálculo de Costo Simplificado) ---
 if agent and llm: 
@@ -113,13 +115,25 @@ if agent and llm:
                 
                 st.session_state.costo_total += costo_pregunta
 
+                # --- CAMBIO: Crear el texto para el expander ---
+                cost_summary = f"""
+                * **Coste de esta pregunta (Estimado):** `${costo_pregunta:.8f} USD`
+                * **Tokens Entrada:** `{input_tokens}` (Coste: `${costo_input:.8f}`)
+                * **Tokens Salida:** `{output_tokens}` (Coste: `${costo_output:.8f}`)
+                """
+
             # Mostrar la respuesta del agente
             st.chat_message("assistant").markdown(respuesta_agente)
             
-            # Guardar en el historial (simple)
+            # --- CAMBIO: Mostrar el expander en el chat ---
+            with st.expander("Ver detalle del costo"):
+                st.markdown(cost_summary)
+            
+            # --- CAMBIO: Guardar el detalle en el historial ---
             st.session_state.messages.append({
                 "role": "assistant", 
-                "content": respuesta_agente
+                "content": respuesta_agente,
+                "cost_summary": cost_summary # Guardamos el detalle
             })
             
             st.rerun() # Recargar la UI para actualizar el costo total en la sidebar
@@ -128,6 +142,3 @@ if agent and llm:
             st.error(f"Hubo un error al procesar tu pregunta: {e}")
 else:
     st.warning("El agente no está disponible. Revisa los errores en la configuración.")
-
-
-
