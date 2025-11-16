@@ -8,15 +8,13 @@ from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe
 
 # --- 1. Configuración Global ---
 MODELO_SELECCIONADO = "gemini-2.5-flash" 
-TASA_CAMBIO_CLP = 950  # <-- NUEVA TASA DE CAMBIO
+TASA_CAMBIO_CLP = 950
 
-# Precios base en USD por 1,000,000 de tokens
 PRECIOS_MODELOS_USD = {
     "gemini-2.5-flash": {"input": 0.30, "output": 0.30}, 
-    "gemini-1.5-pro-latest": {"input": 3.50, "output": 10.50}  
+    "gemini-2.5-pro-latest": {"input": 3.50, "output": 10.50}  
 }
 
-# Selecciona los precios actuales en USD
 PRECIOS_USD = PRECIOS_MODELOS_USD.get(MODELO_SELECCIONADO, {"input": 0, "output": 0})
 
 # --- 2. Configuración de la Página y Barra Lateral ---
@@ -24,13 +22,12 @@ st.set_page_config(page_title="Chatbot de Excel", page_icon="🤖")
 st.title("🤖 Chatbot Conectado a Excel")
 
 if "costo_total" not in st.session_state:
-    st.session_state.costo_total = 0.0 # El costo total se acumulará en CLP
+    st.session_state.costo_total = 0.0
 
 st.sidebar.title("Configuración y Costos")
 st.sidebar.markdown(f"**Modelo:**")
 st.sidebar.code(MODELO_SELECCIONADO, language="text")
 
-# --- CAMBIO A CLP: Mostrar precios en CLP ---
 precio_input_clp = PRECIOS_USD['input'] * TASA_CAMBIO_CLP
 precio_output_clp = PRECIOS_USD['output'] * TASA_CAMBIO_CLP
 st.sidebar.markdown(f"**Precio Input:** ${precio_input_clp:.2f} CLP / 1M tokens")
@@ -38,7 +35,6 @@ st.sidebar.markdown(f"**Precio Output:** ${precio_output_clp:.2f} CLP / 1M token
 
 st.sidebar.divider()
 st.sidebar.subheader("Costo Total (Estimado)")
-# --- CAMBIO A CLP: Mostrar costo total en CLP ---
 st.sidebar.metric(label="Costo Total de la Sesión", value=f"${st.session_state.costo_total:.4f} CLP")
 
 st.sidebar.divider()
@@ -48,43 +44,51 @@ st.sidebar.warning(
     "NO los 'pensamientos' internos del agente."
 )
 
-# --- 3. Función para Cargar el Agente (Modo Stateless) ---
-def get_agent_and_llm():
-    print("Iniciando y cargando el agente (Modo Stateless)...")
+# --- 3. FUNCIONES DE CARGA ---
+
+# --- CAMBIO: Función 1 (Cacheada) - Carga solo las partes pesadas ---
+@st.cache_resource
+def load_cached_resources():
+    print("Iniciando y cargando recursos cacheados (LLM y DF)...")
     
     try:
         os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
     except Exception as e:
-        st.error("Error al cargar la GOOGLE_API_KEY. ¿La agregaste en los 'Secrets' de Streamlit?")
-        return None, None
+        st.error("Error al cargar la GOOGLE_API_KEY.")
+        return None, None, None
 
     try:
         llm = ChatGoogleGenerativeAI(model=MODELO_SELECCIONADO)
     except Exception as e:
         st.error(f"Error al cargar el modelo Gemini '{MODELO_SELECCIONADO}': {e}")
-        return None, None
+        return None, None, None
 
     nombre_archivo = "datos.xlsx"
     try:
         df = pd.read_excel(nombre_archivo)
     except FileNotFoundError:
         st.error(f"Error: No se encontró el archivo '{nombre_archivo}'.")
-        return None, None
+        return None, None, None
 
     print("Capturando schema del DataFrame...")
     buffer = io.StringIO()
     df.info(buf=buffer)
     df_schema = buffer.getvalue()
     
+    print("Recursos cacheados listos.")
+    return llm, df, df_schema
+
+# --- CAMBIO: Función 2 (Sin Cache) - Crea el agente ligero ---
+def create_fresh_agent(llm, df, df_schema):
+    print("Creando un agente 'stateless' fresco...")
+    
     AGENT_PREFIX = f"""
     Estás trabajando con un DataFrame de pandas en Python. El nombre del DataFrame es `df`.
     No debes modificar el DataFrame de ninguna manera (no uses inplace=True).
-    
     Esta es la estructura (schema) completa del DataFrame con la que debes trabajar:
     <schema>
     {df_schema}
     </schema>
-    
     Basado en el schema, responde la pregunta del usuario.
     """
     
@@ -97,11 +101,10 @@ def get_agent_and_llm():
             allow_dangerous_code=True,
             prefix=AGENT_PREFIX
         )
-        print("¡Agente cargado exitosamente con schema!")
-        return agent, llm
+        return agent
     except Exception as e:
         st.error(f"Error al crear el agente: {e}")
-        return None, None
+        return None
 
 # --- 4. Inicialización del Historial de Chat ---
 if "messages" not in st.session_state:
@@ -115,16 +118,20 @@ for message in st.session_state.messages:
                 st.markdown(message["cost_summary"])
 
 # --- 5. Lógica del Chat ---
+
+# --- CAMBIO: Cargamos los recursos cacheados UNA VEZ ---
+llm, df, df_schema = load_cached_resources()
+
 if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
     
     st.chat_message("user").markdown(prompt)
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     try:
-        # Creamos un agente FRESCO para CADA pregunta
-        agent, llm = get_agent_and_llm()
+        # --- CAMBIO: Creamos un agente FRESCO (pero ligero) para CADA pregunta ---
+        agent = create_fresh_agent(llm, df, df_schema)
         
-        if agent and llm: 
+        if agent and llm: # Si el agente se creó bien
             with st.spinner("Pensando..."):
                 
                 input_tokens = llm.get_num_tokens(prompt)
@@ -134,16 +141,12 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
 
                 output_tokens = llm.get_num_tokens(respuesta_agente)
                 
-                # --- CAMBIO A CLP: Calcular costos en CLP ---
                 costo_input_clp = (input_tokens / 1_000_000) * PRECIOS_USD["input"] * TASA_CAMBIO_CLP
                 costo_output_clp = (output_tokens / 1_000_000) * PRECIOS_USD["output"] * TASA_CAMBIO_CLP
                 costo_pregunta_clp = costo_input_clp + costo_output_clp
                 
-                # Acumulamos el costo en CLP
                 st.session_state.costo_total += costo_pregunta_clp
 
-                # --- CAMBIO A CLP: Mostrar resumen en CLP ---
-                # Usamos más decimales para ver costos muy pequeños
                 cost_summary = f"""
                 * **Coste de esta pregunta (Estimado):** `${costo_pregunta_clp:.8f} CLP`
                 * **Tokens Entrada:** `{input_tokens}` (Coste: `${costo_input_clp:.8f} CLP`)
@@ -167,4 +170,6 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
             st.error("No se pudo inicializar el agente. Revisa la configuración.")
 
     except Exception as e:
+        # Aquí es donde capturamos el error 'DESCRIPTOR' si vuelve a ocurrir
         st.error(f"Hubo un error al procesar tu pregunta: {e}")
+
