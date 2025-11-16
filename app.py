@@ -3,6 +3,8 @@ import pandas as pd
 import os
 from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
+import io
+import sys
 
 # --- 1. Configuración Global (Aquí puedes cambiar el modelo) ---
 MODELO_SELECCIONADO = "gemini-2.5-flash" 
@@ -60,15 +62,39 @@ def get_agent_and_llm():
         st.error(f"Error: No se encontró el archivo '{nombre_archivo}'.")
         return None, None
 
+    # --- NUEVO: Capturar el schema (estructura) del DataFrame ---
+    # Esto evita que el agente tenga que correr df.info() o df.head()
+    print("Capturando schema del DataFrame...")
+    buffer = io.StringIO()
+    # Redirigimos la salida de df.info() a un string
+    df.info(buf=buffer)
+    df_schema = buffer.getvalue()
+    print(f"Schema capturado:\n{df_schema}")
+    
+    # --- NUEVO: Crear un prompt (prefijo) para el agente ---
+    AGENT_PREFIX = f"""
+    Estás trabajando con un DataFrame de pandas en Python. El nombre del DataFrame es `df`.
+    No debes modificar el DataFrame de ninguna manera (no uses inplace=True).
+    
+    Esta es la estructura (schema) completa del DataFrame con la que debes trabajar:
+    <schema>
+    {df_schema}
+    </schema>
+    
+    Basado en el schema, responde la pregunta del usuario.
+    """
+    
     try:
+        # --- CAMBIO: Añadimos el 'prefix' al agente ---
         agent = create_pandas_dataframe_agent(
             llm,
             df,
             agent_type="openai-functions",
             verbose=True,
-            allow_dangerous_code=True 
+            allow_dangerous_code=True,
+            prefix=AGENT_PREFIX  # <-- ESTA ES LA CLAVE
         )
-        print("¡Agente cargado exitosamente!")
+        print("¡Agente cargado exitosamente con schema!")
         return agent, llm
     except Exception as e:
         st.error(f"Error al crear el agente: {e}")
@@ -142,4 +168,5 @@ if agent and llm:
             st.error(f"Hubo un error al procesar tu pregunta: {e}")
 else:
     st.warning("El agente no está disponible. Revisa los errores en la configuración.")
+
 
