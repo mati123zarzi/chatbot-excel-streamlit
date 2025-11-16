@@ -11,8 +11,8 @@ MODELO_SELECCIONADO = "gemini-2.5-flash"
 TASA_CAMBIO_CLP = 950
 
 PRECIOS_MODELOS_USD = {
-    "gemini-2.5-flash": {"input": 0.30, "output": 0.30}, 
-    "gemini-2.5-pro-latest": {"input": 3.50, "output": 10.50}  
+    "gemini-2.5-flasht": {"input": 0.30, "output": 0.30}, 
+    "gemini-1.5-pro-latest": {"input": 3.50, "output": 10.50}  
 }
 
 PRECIOS_USD = PRECIOS_MODELOS_USD.get(MODELO_SELECCIONADO, {"input": 0, "output": 0})
@@ -46,42 +46,44 @@ st.sidebar.warning(
 
 # --- 3. FUNCIONES DE CARGA ---
 
-# --- CAMBIO: Función 1 (Cacheada) - Carga solo las partes pesadas ---
+# --- CAMBIO: Función 1 (Cacheada) - Carga SOLO el Excel ---
 @st.cache_resource
-def load_cached_resources():
-    print("Iniciando y cargando recursos cacheados (LLM y DF)...")
+def load_excel_data():
+    print("Iniciando y cargando recursos cacheados (DF y Schema)...")
     
-    try:
-        os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
-    except Exception as e:
-        st.error("Error al cargar la GOOGLE_API_KEY.")
-        return None, None, None
-
-    try:
-        llm = ChatGoogleGenerativeAI(model=MODELO_SELECCIONADO)
-    except Exception as e:
-        st.error(f"Error al cargar el modelo Gemini '{MODELO_SELECCIONADO}': {e}")
-        return None, None, None
-
     nombre_archivo = "datos.xlsx"
     try:
         df = pd.read_excel(nombre_archivo)
     except FileNotFoundError:
         st.error(f"Error: No se encontró el archivo '{nombre_archivo}'.")
-        return None, None, None
+        return None, None
 
     print("Capturando schema del DataFrame...")
     buffer = io.StringIO()
     df.info(buf=buffer)
     df_schema = buffer.getvalue()
     
-    print("Recursos cacheados listos.")
-    return llm, df, df_schema
+    print("Datos de Excel cacheados listos.")
+    return df, df_schema
 
-# --- CAMBIO: Función 2 (Sin Cache) - Crea el agente ligero ---
-def create_fresh_agent(llm, df, df_schema):
-    print("Creando un agente 'stateless' fresco...")
+# --- CAMBIO: Función 2 (Sin Cache) - Crea el LLM y el Agente frescos ---
+def create_fresh_agent_and_llm(df, df_schema):
+    print("Creando un agente 'stateless' fresco (LLM + Agente)...")
     
+    try:
+        os.environ["GOOGLE_API_KEY"] = st.secrets["GOOGLE_API_KEY"]
+    except Exception as e:
+        st.error("Error al cargar la GOOGLE_API_KEY.")
+        return None, None
+
+    try:
+        # 1. Crea el LLM fresco
+        llm = ChatGoogleGenerativeAI(model=MODELO_SELECCIONADO)
+    except Exception as e:
+        st.error(f"Error al cargar el modelo Gemini '{MODELO_SELECCIONADO}': {e}")
+        return None, None
+
+    # 2. Prepara el prompt del agente
     AGENT_PREFIX = f"""
     Estás trabajando con un DataFrame de pandas en Python. El nombre del DataFrame es `df`.
     No debes modificar el DataFrame de ninguna manera (no uses inplace=True).
@@ -93,6 +95,7 @@ def create_fresh_agent(llm, df, df_schema):
     """
     
     try:
+        # 3. Crea el Agente fresco
         agent = create_pandas_dataframe_agent(
             llm,
             df,
@@ -101,10 +104,11 @@ def create_fresh_agent(llm, df, df_schema):
             allow_dangerous_code=True,
             prefix=AGENT_PREFIX
         )
-        return agent
+        print("¡Agente y LLM frescos creados exitosamente!")
+        return agent, llm
     except Exception as e:
         st.error(f"Error al crear el agente: {e}")
-        return None
+        return None, None
 
 # --- 4. Inicialización del Historial de Chat ---
 if "messages" not in st.session_state:
@@ -119,8 +123,8 @@ for message in st.session_state.messages:
 
 # --- 5. Lógica del Chat ---
 
-# --- CAMBIO: Cargamos los recursos cacheados UNA VEZ ---
-llm, df, df_schema = load_cached_resources()
+# --- CAMBIO: Cargamos SOLO el Excel cacheado ---
+df, df_schema = load_excel_data()
 
 if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
     
@@ -128,10 +132,10 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
     st.session_state.messages.append({"role": "user", "content": prompt})
 
     try:
-        # --- CAMBIO: Creamos un agente FRESCO (pero ligero) para CADA pregunta ---
-        agent = create_fresh_agent(llm, df, df_schema)
+        # --- CAMBIO: Creamos un agente y LLM FRESCOS para CADA pregunta ---
+        agent, llm = create_fresh_agent_and_llm(df, df_schema)
         
-        if agent and llm: # Si el agente se creó bien
+        if agent and llm: # Si se crearon bien
             with st.spinner("Pensando..."):
                 
                 input_tokens = llm.get_num_tokens(prompt)
@@ -139,7 +143,7 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
                 response = agent.invoke(prompt)
                 respuesta_agente = response['output']
 
-                output_tokens = llm.get_num_tokens(respuesta_agente)
+                output_tokens = ll.get_num_tokens(respuesta_agente)
                 
                 costo_input_clp = (input_tokens / 1_000_000) * PRECIOS_USD["input"] * TASA_CAMBIO_CLP
                 costo_output_clp = (output_tokens / 1_000_000) * PRECIOS_USD["output"] * TASA_CAMBIO_CLP
@@ -170,6 +174,8 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
             st.error("No se pudo inicializar el agente. Revisa la configuración.")
 
     except Exception as e:
+        st.error(f"Hubo un error al procesar tu pregunta: {e}")
         # Aquí es donde capturamos el error 'DESCRIPTOR' si vuelve a ocurrir
         st.error(f"Hubo un error al procesar tu pregunta: {e}")
+
 
