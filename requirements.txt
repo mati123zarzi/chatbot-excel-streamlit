@@ -5,6 +5,7 @@ langchain
 langchain-google-genai
 langchain-experimental
 tabulate
-protobuf>=4.25.0
+protobuf==4.25.3
+
 
 
