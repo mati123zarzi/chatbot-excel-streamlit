@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from langchain_google_genai import ChatGoogleGenerativeiAI
+from langchain_google_genai import ChatGoogleGenerativeAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 
 # --- 1. Configuración Global (Aquí puedes cambiar el modelo) ---
@@ -177,3 +177,4 @@ if agent and llm:
 else:
 
     st.warning("El agente no está disponible. Revisa los errores en la configuración.")
+
