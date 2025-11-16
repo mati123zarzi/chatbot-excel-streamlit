@@ -8,8 +8,8 @@ from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe
 MODELO_SELECCIONADO = "gemini-2.5-flash" 
 
 PRECIOS_MODELOS = {
-    "gemini-2.5-flash": {"input": 0.30, "output": 0.30}, 
-    "gemini-2.5-pro-latest": {"input": 3.50, "output": 10.50}  
+    "gemini-2.5-flash": {"input": 0.30*950, "output": 0.30*950}, 
+    "gemini-2.5-pro-latest": {"input": 3.50*950, "output": 10.50*950}  
 }
 
 PRECIOS_ACTUALES = PRECIOS_MODELOS.get(MODELO_SELECCIONADO, {"input": 0, "output": 0})
@@ -28,7 +28,7 @@ st.sidebar.markdown(f"**Precio Input:** ${PRECIOS_ACTUALES['input']:.2f} / 1M to
 st.sidebar.markdown(f"**Precio Output:** ${PRECIOS_ACTUALES['output']:.2f} / 1M tokens")
 st.sidebar.divider()
 st.sidebar.subheader("Costo Total (Estimado)")
-st.sidebar.metric(label="Costo Total de la Sesión", value=f"${st.session_state.costo_total:.8f} USD")
+st.sidebar.metric(label="Costo Total de la Sesión", value=f"${st.session_state.costo_total:.8f} CLP")
 st.sidebar.divider()
 st.sidebar.warning(
     "**ESTIMACIÓN:** El costo real será mayor. Este cálculo solo"
@@ -117,7 +117,7 @@ if agent and llm:
 
                 # --- CAMBIO: Crear el texto para el expander ---
                 cost_summary = f"""
-                * **Coste de esta pregunta (Estimado):** `${costo_pregunta:.8f} USD`
+                * **Coste de esta pregunta (Estimado):** `${costo_pregunta:.8f} CLP`
                 * **Tokens Entrada:** `{input_tokens}` (Coste: `${costo_input:.8f}`)
                 * **Tokens Salida:** `{output_tokens}` (Coste: `${costo_output:.8f}`)
                 """
@@ -142,3 +142,4 @@ if agent and llm:
             st.error(f"Hubo un error al procesar tu pregunta: {e}")
 else:
     st.warning("El agente no está disponible. Revisa los errores en la configuración.")
+
