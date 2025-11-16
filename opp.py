@@ -1,7 +1,7 @@
 import streamlit as st
 import pandas as pd
 import os
-from langchain_google_genai import ChatGoogleGeneraiAI
+from langchain_google_genai import ChatGoogleGenerativeiAI
 from langchain_experimental.agents.agent_toolkits import create_pandas_dataframe_agent
 
 # --- 1. Configuración Global (Aquí puedes cambiar el modelo) ---
@@ -175,4 +175,5 @@ if agent and llm:
         except Exception as e:
             st.error(f"Hubo un error al procesar tu pregunta: {e}")
 else:
+
     st.warning("El agente no está disponible. Revisa los errores en la configuración.")
