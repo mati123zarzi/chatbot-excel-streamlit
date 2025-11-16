@@ -1,11 +1,12 @@
 streamlit
-pandas==2.1.4
+pandas==2.2.2
 openpyxl
 langchain
 langchain-google-genai
 langchain-experimental
 tabulate
 protobuf==4.25.3
+
 
 
 
