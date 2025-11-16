@@ -2,14 +2,11 @@ streamlit
 pandas
 openpyxl
 langchain
+langchain-google-genai
 langchain-experimental
 tabulate
-
-# --- Stack de Google (Versiones compatibles) ---
-langchain-google-genai==1.0.1
-google-generativeai==0.5.0
-google-api-core==2.15.0
 protobuf==4.25.3
+
 
 
 
