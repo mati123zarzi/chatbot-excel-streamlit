@@ -39,8 +39,10 @@ st.sidebar.metric(label="Costo Total de la Sesión", value=f"${st.session_state.
 
 st.sidebar.divider()
 st.sidebar.warning(
-    "ESTIMACIÓN: El costo real será mayor. Este cálculo solo mide la pregunta (input) y la respuesta final (output),
-    No los 'pensamientos' internos del agente."
+"**ESTIMACIÓN:** El costo real será mayor. Este cálculo solo"
+    " mide la pregunta (input) y la respuesta final (output), "
+    "NO los 'pensamientos' internos del agente."
+
 )
 
 # --- 3. FUNCIONES DE CARGA ---
@@ -171,6 +173,7 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
 
     except Exception as e:
         st.error(f"Hubo un error al procesar tu pregunta: {e}")
+
 
 
 
