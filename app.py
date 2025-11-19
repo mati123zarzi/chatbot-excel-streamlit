@@ -11,8 +11,8 @@ MODELO_SELECCIONADO = "gemini-2.5-flash"
 TASA_CAMBIO_CLP = 950
 
 PRECIOS_MODELOS_USD = {
-    "gemini-2.5-flash": {"input": 0.30, "output": 0.30}, 
-    "gemini-1.5-pro-latest": {"input": 3.50, "output": 10.50}  
+    "gemini-2.5-flash": {"input": 0.30, "output": 2.50}, 
+    "gemini-1.5-pro-latest": {"input": 2.50, "output": 2.50}  
 }
 
 PRECIOS_USD = PRECIOS_MODELOS_USD.get(MODELO_SELECCIONADO, {"input": 0, "output": 0})
@@ -173,6 +173,7 @@ if prompt := st.chat_input("¿Qué quieres saber de tu Excel?"):
 
     except Exception as e:
         st.error(f"Hubo un error al procesar tu pregunta: {e}")
+
 
 
 
